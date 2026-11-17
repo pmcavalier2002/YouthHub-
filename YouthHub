@@ -1,0 +1,2440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>YouthHub Check-In & Roster</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Font Awesome for clean mobile icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
+    }
+    /* Hide scrollbars cleanly where horizontal chips scroll */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.95); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.18s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col select-none">
+
+  <!-- ==================== TOAST / MESSAGE BANNER ==================== -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[92%] max-w-md pointer-events-none flex flex-col gap-2"></div>
+
+  <!-- ==================== 1. LEADER SETUP / LOCK SCREEN ==================== -->
+  <div id="auth-screen" class="fixed inset-0 z-50 bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-pop">
+      <div class="flex flex-col items-center text-center mb-6">
+        <div class="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-indigo-200 mb-3">
+          <i class="fa-solid fa-fire-flame-curved"></i>
+        </div>
+        <h1 id="auth-title" class="text-2xl font-extrabold text-slate-900 tracking-tight">YouthHub Check-In</h1>
+        <p id="auth-subtitle" class="text-sm text-slate-500 mt-1">Local-first Youth Ministry Roster & Attendance</p>
+      </div>
+
+      <!-- First-Time Setup Form -->
+      <form id="setup-form" onsubmit="handleSetupSubmit(event)" class="space-y-4 hidden" novalidate>
+        <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-3.5 text-xs text-indigo-800 leading-relaxed">
+          <i class="fa-solid fa-shield-halved mr-1"></i>
+          <strong>100% Private & Offline:</strong> Your leader account and student database are stored locally on this device. You can export backups to Google Drive anytime.
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Leader Name *</label>
+          <input type="text" id="setup-leader-name" placeholder="e.g., Pastor Mike" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-base" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Ministry / Youth Group Name *</label>
+          <input type="text" id="setup-ministry-name" placeholder="e.g., Ignite Student Ministry" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-base" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Create Leader PIN or Password *</label>
+          <input type="password" id="setup-pin" placeholder="At least 4 digits or characters" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-base tracking-widest" />
+        </div>
+        <p id="setup-error" class="text-xs text-rose-600 font-semibold text-center hidden"></p>
+        <button type="button" onclick="handleSetupSubmit(event)" class="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-base shadow-lg shadow-indigo-200 transition">
+          Create Local Leader Account
+        </button>
+        <div class="pt-1 border-t border-slate-100 text-center">
+          <button type="button" onclick="quickDemoSetup()" class="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-wand-magic-sparkles text-indigo-600"></i> Quick Demo / Skip Setup (Loads Sample Group)
+          </button>
+        </div>
+      </form>
+
+      <!-- Sign-In / Unlock Form -->
+      <form id="login-form" onsubmit="handleLoginSubmit(event)" class="space-y-4 hidden" novalidate>
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Welcome Back</p>
+          <p id="login-leader-display" class="text-lg font-bold text-slate-800 mt-0.5">Leader</p>
+          <p id="login-ministry-display" class="text-xs text-indigo-600 font-medium">Youth Ministry</p>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Enter Leader PIN / Password</label>
+          <input type="password" id="login-pin-input" placeholder="••••" class="w-full px-4 py-3.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-center text-xl font-bold tracking-widest" />
+        </div>
+        <p id="login-error" class="text-xs text-rose-600 font-semibold text-center hidden">Incorrect PIN or password. Please try again.</p>
+        <button type="button" onclick="handleLoginSubmit(event)" class="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-base shadow-lg shadow-indigo-200 transition">
+          <i class="fa-solid fa-lock-open mr-2"></i>Unlock Ministry App
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APP SHELL ==================== -->
+  <div id="app-shell" class="hidden flex-1 flex flex-col max-w-4xl w-full mx-auto pb-24">
+
+    <!-- Top App Header -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <i class="fa-solid fa-fire-flame-curved"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 id="header-ministry-name" class="font-extrabold text-slate-900 text-base sm:text-lg truncate leading-tight">Youth Ministry</h1>
+          <p id="header-leader-name" class="text-xs text-slate-500 truncate">Leader</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btn-push-perm" onclick="requestBrowserNotifications()" title="Enable Push Notifications" class="px-3 py-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold flex items-center gap-1.5 hover:bg-amber-100 transition">
+          <i class="fa-solid fa-bell"></i>
+          <span class="hidden sm:inline">Alerts</span>
+        </button>
+        <button onclick="lockApp()" title="Lock Screen" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-lock"></i>
+          <span>Lock</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ==================== TAB 1: DASHBOARD & SMART ALERTS ==================== -->
+    <main id="view-dashboard" class="p-4 space-y-5 animate-pop">
+      <!-- Quick Metrics Row -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Students</p>
+          <p id="stat-total-students" class="text-2xl font-extrabold text-slate-900 mt-1">0</p>
+        </div>
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Events</p>
+          <p id="stat-total-events" class="text-2xl font-extrabold text-indigo-600 mt-1">0</p>
+        </div>
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Alerts</p>
+          <p id="stat-total-alerts" class="text-2xl font-extrabold text-amber-600 mt-1">0</p>
+        </div>
+      </div>
+
+      <!-- Quick Action CTA -->
+      <div class="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-4 text-white shadow-md flex items-center justify-between gap-3">
+        <div>
+          <h2 class="font-bold text-base">Ready for Service?</h2>
+          <p class="text-xs text-indigo-100 mt-0.5">Start an event or check in arriving students.</p>
+        </div>
+        <button onclick="switchTab('checkin')" class="px-4 py-2.5 rounded-xl bg-white text-indigo-700 font-bold text-sm shadow hover:bg-indigo-50 shrink-0 transition">
+          Open Check-In <i class="fa-solid fa-arrow-right ml-1"></i>
+        </button>
+      </div>
+
+      <!-- SMART ALERTS SECTION: UPCOMING BIRTHDAYS (NEXT 14 DAYS) -->
+      <section class="space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center text-xs"><i class="fa-solid fa-cake-candles"></i></span>
+            Birthdays (Next 14 Days)
+          </h3>
+          <span id="badge-birthdays" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-pink-100 text-pink-700">0</span>
+        </div>
+        <div id="birthday-alerts-list" class="space-y-2.5">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- SMART ALERTS SECTION: MISSED 2 CONSECUTIVE MIDWEEK SERVICES -->
+      <section class="space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-xs"><i class="fa-solid fa-user-clock"></i></span>
+            Missed 2 Midweek Services
+          </h3>
+          <span id="badge-missed" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700">0</span>
+        </div>
+        <div id="missed-alerts-list" class="space-y-2.5">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+    </main>
+
+    <!-- ==================== TAB 2: EVENTS & FAST CHECK-IN ==================== -->
+    <main id="view-checkin" class="hidden p-4 space-y-4 animate-pop">
+      <!-- Event Selector & Create Event Bar -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="font-extrabold text-slate-900 text-base">Service / Event Check-In</h2>
+          <button onclick="openCreateEventModal()" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition">
+            <i class="fa-solid fa-plus"></i> New Event
+          </button>
+        </div>
+
+        <div id="event-selector-wrapper">
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Active Event</label>
+          <div class="flex gap-2">
+            <select id="active-event-select" onchange="handleEventChange()" class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 font-semibold text-sm text-slate-800 outline-none focus:border-indigo-500">
+              <!-- Populated dynamically -->
+            </select>
+            <button id="btn-delete-event" onclick="deleteCurrentEvent()" title="Delete Selected Event" class="px-3 py-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-sm transition hidden">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Event Attendance Counter Banner -->
+        <div id="event-live-stats" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <p id="active-event-meta" class="text-xs font-semibold text-emerald-800">Midweek Service • Date</p>
+            <p class="text-[11px] text-emerald-600 mt-0.5">Tap any student card below to toggle check-in</p>
+          </div>
+          <div class="text-right">
+            <span id="checkin-count-display" class="text-2xl font-extrabold text-emerald-700">0</span>
+            <span class="block text-[10px] font-bold uppercase tracking-wider text-emerald-600">Checked In</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Check-In Search, Grade Filter & Quick Add Guest -->
+      <div id="checkin-controls" class="space-y-2.5 hidden">
+        <div class="flex gap-2">
+          <div class="relative flex-1">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+            <input type="text" id="checkin-search" oninput="renderCheckInList()" placeholder="Search student name..." class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-500" />
+          </div>
+          <button onclick="openStudentModal(null, true)" class="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm transition">
+            <i class="fa-solid fa-user-plus"></i> First-Time Guest
+          </button>
+        </div>
+
+        <!-- Grade Filter Pills -->
+        <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1" id="checkin-grade-filters">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Student Tap-to-Check-In Grid -->
+      <div id="checkin-student-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <!-- Populated dynamically -->
+      </div>
+    </main>
+
+    <!-- ==================== TAB 3: STUDENT DIRECTORY & PROFILES ==================== -->
+    <main id="view-students" class="hidden p-4 space-y-4 animate-pop">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="font-extrabold text-slate-900 text-lg">Student Roster</h2>
+          <p class="text-xs text-slate-500">Tap a student to view or add parent, medical & permission info</p>
+        </div>
+        <button onclick="openStudentModal(null, false)" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition">
+          <i class="fa-solid fa-plus"></i> Add Student
+        </button>
+      </div>
+
+      <!-- Search & Grade Filter -->
+      <div class="space-y-2">
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input type="text" id="roster-search" oninput="renderRosterList()" placeholder="Search by name, school, or phone..." class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-500" />
+        </div>
+        <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1" id="roster-grade-filters">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Student Roster List -->
+      <div id="roster-list" class="space-y-2.5">
+        <!-- Populated dynamically -->
+      </div>
+    </main>
+
+    <!-- ==================== TAB 4: BACKUP, GOOGLE DRIVE & SETTINGS ==================== -->
+    <main id="view-settings" class="hidden p-4 space-y-4 animate-pop">
+      <!-- Google Drive Local Backup & Restore Card -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shrink-0">
+              <i class="fa-brands fa-google-drive"></i>
+            </div>
+            <div>
+              <h2 class="font-extrabold text-slate-900 text-base">Google Drive Backup & Restore</h2>
+              <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                All student photos, attendance, and permission notes live locally on your device. Export a backup file to save directly to your <strong>Google Drive</strong> folder.
+              </p>
+            </div>
+          </div>
+          <span id="storage-mode-badge" class="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <i class="fa-solid fa-database mr-1"></i>IndexedDB
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <button onclick="exportBackupJSON()" class="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Export Backup (.json)
+          </button>
+
+          <label class="w-full py-3.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer transition">
+            <i class="fa-solid fa-cloud-arrow-down"></i> Restore Backup (.json)
+            <input type="file" id="import-backup-input" accept=".json,application/json" onchange="handleImportBackup(event)" class="hidden" />
+          </label>
+        </div>
+        <p id="last-backup-label" class="text-[11px] text-slate-400 text-center">Last backup: Never</p>
+      </div>
+
+      <!-- Share / Export Standalone App File Card -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shrink-0">
+            <i class="fa-solid fa-share-nodes"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-slate-900 text-base">Share or Host This App</h3>
+            <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">
+              Download the complete, self-contained app file (<strong>YouthHub-App.html</strong>). You can email it to other youth leaders, upload it to Google Drive, or drop it onto a free host like <strong>Netlify Drop</strong> or <strong>GitHub Pages</strong> so anyone can open it on their phone.
+            </p>
+          </div>
+        </div>
+        <button type="button" onclick="downloadStandaloneAppHTML()" class="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition">
+          <i class="fa-solid fa-file-arrow-down"></i> Download Standalone App (.html)
+        </button>
+      </div>
+
+      <!-- Sample Data & Quick Demo Helper -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+        <h3 class="font-extrabold text-slate-900 text-sm">Testing & Demo Tools</h3>
+        <p class="text-xs text-slate-500">Want to see how upcoming birthday alerts and 2-week missed midweek service alerts work right away? Load sample students and past services.</p>
+        <button onclick="loadSampleData()" class="w-full py-3 px-4 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Load Sample Youth Group Data
+        </button>
+      </div>
+
+      <!-- Leader Account Settings -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+        <h3 class="font-extrabold text-slate-900 text-sm">Leader Account & Security</h3>
+        <form onsubmit="updateLeaderSettings(event)" class="space-y-3">
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Leader Name</label>
+            <input type="text" id="settings-leader-name" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Ministry Name</label>
+            <input type="text" id="settings-ministry-name" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">New PIN / Password (leave blank to keep current)</label>
+            <input type="password" id="settings-new-pin" minlength="4" placeholder="••••" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+          <button type="submit" class="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition">
+            Save Leader Settings
+          </button>
+        </form>
+      </div>
+
+      <!-- Android Install Tip -->
+      <div class="bg-slate-100 rounded-2xl p-4 text-xs text-slate-600 space-y-1.5">
+        <p class="font-bold text-slate-800"><i class="fa-brands fa-android text-emerald-600 mr-1"></i> Install on Android Home Screen</p>
+        <p>Open this app in <strong>Chrome on Android</strong>, tap the <strong>⋮ menu</strong> in the top right, and select <strong>"Add to Home screen"</strong> or <strong>"Install app"</strong> for a full-screen offline experience.</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== BOTTOM NAVIGATION BAR ==================== -->
+  <nav id="bottom-nav" class="hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 px-2 py-1.5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+    <div class="max-w-4xl mx-auto grid grid-cols-4 gap-1">
+      <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-indigo-600 font-bold relative">
+        <span id="nav-alert-dot" class="hidden absolute top-1.5 right-1/4 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white"></span>
+        <i class="fa-solid fa-house text-lg"></i>
+        <span class="text-[11px] mt-0.5">Home</span>
+      </button>
+      <button onclick="switchTab('checkin')" id="nav-checkin" class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 font-medium">
+        <i class="fa-solid fa-clipboard-check text-lg"></i>
+        <span class="text-[11px] mt-0.5">Check-In</span>
+      </button>
+      <button onclick="switchTab('students')" id="nav-students" class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 font-medium">
+        <i class="fa-solid fa-users text-lg"></i>
+        <span class="text-[11px] mt-0.5">Students</span>
+      </button>
+      <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 font-medium">
+        <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+        <span class="text-[11px] mt-0.5">Backup</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ==================== MODAL: CREATE EVENT ==================== -->
+  <div id="event-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-pop">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-extrabold text-slate-900">Create Check-In Event</h3>
+        <button onclick="closeCreateEventModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form onsubmit="saveNewEvent(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Event Name *</label>
+          <input type="text" id="event-name-input" required placeholder="e.g., Wednesday Night Youth" class="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Date *</label>
+            <input type="date" id="event-date-input" required class="w-full px-3.5 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Event Type *</label>
+            <select id="event-type-input" class="w-full px-3.5 py-3 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500">
+              <option value="Midweek Service">Midweek Service</option>
+              <option value="Sunday Gathering">Sunday Gathering</option>
+              <option value="Special Event / Camp">Special Event / Camp</option>
+            </select>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-500 bg-slate-50 p-3 rounded-xl">
+          <i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i>
+          Events marked as <strong>Midweek Service</strong> are automatically tracked for the 2-consecutive-misses follow-up alert.
+        </p>
+        <button type="submit" class="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition">
+          Create & Start Check-In
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: ADD / EDIT STUDENT PROFILE ==================== -->
+  <div id="student-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] flex flex-col animate-pop">
+      <!-- Modal Header -->
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <h3 id="student-modal-title" class="text-lg font-extrabold text-slate-900">Register New Student</h3>
+        <button onclick="closeStudentModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Profile Form Sub-Tabs -->
+      <div class="px-5 pt-3 border-b border-slate-200 flex gap-2 shrink-0 bg-slate-50">
+        <button type="button" onclick="switchStudentFormTab('basic')" id="stab-basic" class="px-4 py-2.5 text-xs font-bold border-b-2 border-indigo-600 text-indigo-600">
+          1. Student Info
+        </button>
+        <button type="button" onclick="switchStudentFormTab('leader')" id="stab-leader" class="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500">
+          2. Parents, Medical & Forms
+        </button>
+      </div>
+
+      <!-- Scrollable Form Body -->
+      <form id="student-form" onsubmit="saveStudentProfile(event)" class="p-5 overflow-y-auto space-y-4 flex-1">
+        <input type="hidden" id="student-id-field" />
+        <input type="hidden" id="student-auto-checkin-field" value="false" />
+
+        <!-- SUB-TAB 1: BASIC STUDENT REGISTRATION INFO -->
+        <div id="student-panel-basic" class="space-y-4">
+          <!-- Photo Upload / Camera Capture -->
+          <div class="flex items-center gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+            <img id="student-photo-preview" src="" alt="Student Photo" class="w-20 h-20 rounded-2xl object-cover bg-indigo-100 border border-slate-200 shrink-0" />
+            <div class="space-y-1.5">
+              <p class="text-xs font-bold text-slate-800">Student Photo</p>
+              <label class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer hover:bg-indigo-700 transition">
+                <i class="fa-solid fa-camera"></i> Take / Choose Photo
+                <input type="file" id="student-photo-input" accept="image/*" capture="user" onchange="handleStudentPhotoUpload(event)" class="hidden" />
+              </label>
+              <button type="button" onclick="clearStudentPhoto()" class="block text-[11px] text-slate-400 hover:text-rose-500">Remove photo</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Full Name *</label>
+            <input type="text" id="st-name" required placeholder="First & Last Name" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Gender *</label>
+              <select id="st-gender" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Grade (6th–12th) *</label>
+              <select id="st-grade" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500">
+                <option value="6th">6th Grade</option>
+                <option value="7th">7th Grade</option>
+                <option value="8th">8th Grade</option>
+                <option value="9th">9th Grade</option>
+                <option value="10th">10th Grade</option>
+                <option value="11th">11th Grade</option>
+                <option value="12th">12th Grade</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Date of Birth *</label>
+              <input type="date" id="st-dob" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">School</label>
+              <input type="text" id="st-school" placeholder="e.g., Central Middle" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Student Phone Number</label>
+              <input type="tel" id="st-phone" placeholder="(555) 123-4567" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+            </div>
+            <label class="flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+              <span class="text-xs font-bold text-slate-700"><i class="fa-solid fa-comment-sms text-indigo-600 mr-1.5"></i>Can Receive Texts?</span>
+              <input type="checkbox" id="st-can-text" checked class="w-5 h-5 accent-indigo-600 rounded" />
+            </label>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Home Address</label>
+            <input type="text" id="st-address" placeholder="Street, City, State, Zip" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+        </div>
+
+        <!-- SUB-TAB 2: PARENT, MEDICAL & PERMISSION FORM INFO -->
+        <div id="student-panel-leader" class="hidden space-y-4">
+          <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-800">
+            Leaders can update parent contact info, medical allergies, and signed permission forms anytime.
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Parent / Guardian 1 Name</label>
+              <input type="text" id="st-parent1-name" placeholder="Parent Full Name" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Parent 1 Phone</label>
+              <input type="tel" id="st-parent1-phone" placeholder="(555) 987-6543" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Parent / Guardian 2 Name</label>
+              <input type="text" id="st-parent2-name" placeholder="Optional Second Parent" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Parent 2 Phone / Email</label>
+              <input type="text" id="st-parent2-contact" placeholder="Phone or Email" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Emergency Contact (Name & Phone)</label>
+            <input type="text" id="st-emergency" placeholder="e.g., Aunt Sarah - (555) 222-3333" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-rose-600 mb-1">Allergies / Medical Conditions / Medications</label>
+            <textarea id="st-medical" rows="2" placeholder="e.g., Peanut allergy (carries EpiPen), asthma inhaler..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Health Insurance Provider & Policy #</label>
+            <input type="text" id="st-insurance" placeholder="e.g., BlueCross #123456789" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500" />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="flex items-center justify-between px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+              <span class="text-xs font-bold text-slate-700">Annual Permission Form Signed</span>
+              <input type="checkbox" id="st-perm-signed" class="w-5 h-5 accent-emerald-600 rounded" />
+            </label>
+            <label class="flex items-center justify-between px-3.5 py-3 rounded-xl border border-indigo-200 bg-indigo-50/60 cursor-pointer">
+              <span class="text-xs font-bold text-indigo-900">
+                <i class="fa-solid fa-camera-retro text-indigo-600 mr-1"></i>Photo can be used on social media
+              </span>
+              <input type="checkbox" id="st-photo-release" class="w-5 h-5 accent-indigo-600 rounded" />
+            </label>
+          </div>
+
+          <!-- Signed Permission Form PDF Upload & Viewer Section -->
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                <i class="fa-solid fa-file-pdf text-rose-600 mr-1"></i> Signed Permission Form (PDF)
+              </label>
+              <span id="pdf-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">None Uploaded</span>
+            </div>
+
+            <!-- Empty State Upload Prompt -->
+            <div id="pdf-upload-empty" class="flex items-center justify-between gap-2">
+              <p class="text-xs text-slate-500">Upload a scanned or digital PDF copy of the parent-signed permission form.</p>
+              <label class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1.5 shadow-xs transition">
+                <i class="fa-solid fa-upload"></i> Upload PDF
+                <input type="file" id="st-pdf-input" accept="application/pdf,.pdf" onchange="handlePermissionPdfUpload(event)" class="hidden" />
+              </label>
+            </div>
+
+            <!-- Uploaded PDF Card & Actions -->
+            <div id="pdf-uploaded-card" class="hidden bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-base shrink-0">
+                  <i class="fa-solid fa-file-pdf"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p id="pdf-filename-display" class="text-xs font-bold text-slate-800 truncate">Permission_Form.pdf</p>
+                  <p id="pdf-date-display" class="text-[11px] text-slate-400">Uploaded today</p>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+                <button type="button" onclick="openPdfViewerModal()" class="flex-1 py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                  <i class="fa-solid fa-eye"></i> View PDF
+                </button>
+                <label class="py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer flex items-center justify-center gap-1 transition">
+                  <i class="fa-solid fa-rotate"></i> Replace
+                  <input type="file" accept="application/pdf,.pdf" onchange="handlePermissionPdfUpload(event)" class="hidden" />
+                </label>
+                <button type="button" onclick="removePermissionPdf()" class="py-2 px-3 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center justify-center gap-1 transition">
+                  <i class="fa-solid fa-trash-can"></i> Remove
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Leader Notes</label>
+            <textarea id="st-notes" rows="2" placeholder="Small group leader, prayer requests, pickup notes..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500"></textarea>
+          </div>
+        </div>
+
+        <!-- Save & Delete Actions -->
+        <div class="pt-3 border-t border-slate-200 flex items-center gap-2">
+          <button type="button" id="btn-delete-student" onclick="deleteCurrentStudent()" class="hidden px-4 py-3 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 font-bold text-xs">
+            Delete
+          </button>
+          <button type="submit" class="flex-1 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition">
+            Save Student Profile
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CONFIRMATION DIALOG (NO alert/confirm) ==================== -->
+  <div id="confirm-modal" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-pop">
+      <h4 id="confirm-title" class="text-lg font-extrabold text-slate-900">Confirm Action</h4>
+      <p id="confirm-message" class="text-sm text-slate-600 leading-relaxed"></p>
+      <div class="flex gap-2 pt-2">
+        <button id="confirm-cancel-btn" class="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm">Cancel</button>
+        <button id="confirm-ok-btn" class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: BUILT-IN PERMISSION FORM PDF VIEWER ==================== -->
+  <div id="pdf-viewer-modal" class="hidden fixed inset-0 z-[70] bg-slate-950/85 backdrop-blur-xs flex flex-col p-2 sm:p-5">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-auto flex-1 flex flex-col overflow-hidden animate-pop">
+      <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <i class="fa-solid fa-file-pdf text-rose-400 text-lg shrink-0"></i>
+          <div class="min-w-0">
+            <h4 id="pdf-viewer-title" class="text-sm font-bold truncate">Signed Permission Form.pdf</h4>
+            <p id="pdf-viewer-subtitle" class="text-[11px] text-slate-400 truncate">Student Document</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <a id="pdf-viewer-open-external" href="#" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-up-right-from-square"></i>
+            <span class="hidden sm:inline">Open / Download</span>
+          </a>
+          <button type="button" onclick="closePdfViewerModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 bg-slate-200 relative overflow-hidden">
+        <iframe id="pdf-viewer-frame" class="w-full h-full border-0" title="Permission Form PDF Viewer"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * RESILIENT STORAGE ENGINE (IndexedDB -> localStorage -> In-Memory Fallback)
+     * Never hangs or blocks startup in sandboxed iframes, Safari, or strict modes.
+     * ============================================================================
+     */
+    const DB_NAME = 'YouthHubMinistryDB';
+    const DB_VERSION = 1;
+    const STORES = ['meta', 'students', 'events'];
+    let dbInstance = null;
+    let storageDriver = 'memory'; // 'indexeddb' | 'localstorage' | 'memory'
+    const memoryFallbackStore = { meta: {}, students: {}, events: {} };
+
+    function isLocalStorageAvailable() {
+      try {
+        const testKey = '__yh_storage_test__';
+        window.localStorage.setItem(testKey, '1');
+        window.localStorage.removeItem(testKey);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function lsReadStore(storeName) {
+      try {
+        const raw = window.localStorage.getItem(`${DB_NAME}_${storeName}`);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return memoryFallbackStore[storeName] || {};
+      }
+    }
+
+    function lsWriteStore(storeName, mapObj) {
+      memoryFallbackStore[storeName] = mapObj;
+      try {
+        window.localStorage.setItem(`${DB_NAME}_${storeName}`, JSON.stringify(mapObj));
+      } catch (e) {
+        // Quota exceeded or restricted; keep in memoryFallbackStore
+      }
+    }
+
+    function initDB() {
+      return new Promise((resolve) => {
+        // 1. Check if IndexedDB exists at all
+        if (typeof window === 'undefined' || !('indexedDB' in window) || !window.indexedDB) {
+          storageDriver = isLocalStorageAvailable() ? 'localstorage' : 'memory';
+          return resolve(null);
+        }
+
+        let settled = false;
+        const finishWithFallback = () => {
+          if (settled) return;
+          settled = true;
+          storageDriver = isLocalStorageAvailable() ? 'localstorage' : 'memory';
+          resolve(null);
+        };
+
+        // 2. Strict 1200ms timeout so sandboxed previews / Safari never hang on indexedDB.open
+        const timeoutId = setTimeout(finishWithFallback, 1200);
+
+        try {
+          const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+
+          req.onupgradeneeded = (e) => {
+            try {
+              const db = e.target.result;
+              STORES.forEach((store) => {
+                if (!db.objectStoreNames.contains(store)) {
+                  db.createObjectStore(store, { keyPath: 'id' });
+                }
+              });
+            } catch (err) {
+              // Ignore upgrade errors; onerror or timeout will trigger fallback
+            }
+          };
+
+          req.onsuccess = (e) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            dbInstance = e.target.result;
+            storageDriver = 'indexeddb';
+            resolve(dbInstance);
+          };
+
+          req.onerror = () => {
+            clearTimeout(timeoutId);
+            finishWithFallback();
+          };
+
+          req.onblocked = () => {
+            clearTimeout(timeoutId);
+            finishWithFallback();
+          };
+        } catch (err) {
+          clearTimeout(timeoutId);
+          finishWithFallback();
+        }
+      });
+    }
+
+    function dbGetAll(storeName) {
+      return new Promise((resolve) => {
+        if (storageDriver === 'indexeddb' && dbInstance) {
+          try {
+            const tx = dbInstance.transaction(storeName, 'readonly');
+            const req = tx.objectStore(storeName).getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => resolve(Object.values(lsReadStore(storeName)));
+            return;
+          } catch (e) {
+            // Fall through to localStorage/memory
+          }
+        }
+        if (storageDriver === 'localstorage') {
+          resolve(Object.values(lsReadStore(storeName)));
+        } else {
+          resolve(Object.values(memoryFallbackStore[storeName] || {}));
+        }
+      });
+    }
+
+    function dbGet(storeName, id) {
+      return new Promise((resolve) => {
+        if (storageDriver === 'indexeddb' && dbInstance) {
+          try {
+            const tx = dbInstance.transaction(storeName, 'readonly');
+            const req = tx.objectStore(storeName).get(id);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve((lsReadStore(storeName))[id] || null);
+            return;
+          } catch (e) {
+            // Fall through
+          }
+        }
+        if (storageDriver === 'localstorage') {
+          resolve((lsReadStore(storeName))[id] || null);
+        } else {
+          resolve((memoryFallbackStore[storeName] || {})[id] || null);
+        }
+      });
+    }
+
+    function dbPut(storeName, item) {
+      return new Promise((resolve) => {
+        // Always mirror in memoryFallbackStore for instant reliability
+        if (!memoryFallbackStore[storeName]) memoryFallbackStore[storeName] = {};
+        memoryFallbackStore[storeName][item.id] = item;
+
+        if (storageDriver === 'indexeddb' && dbInstance) {
+          try {
+            const tx = dbInstance.transaction(storeName, 'readwrite');
+            const req = tx.objectStore(storeName).put(item);
+            req.onsuccess = () => resolve(item);
+            req.onerror = () => {
+              const map = lsReadStore(storeName);
+              map[item.id] = item;
+              lsWriteStore(storeName, map);
+              resolve(item);
+            };
+            return;
+          } catch (e) {
+            // Fall through
+          }
+        }
+        if (storageDriver === 'localstorage') {
+          const map = lsReadStore(storeName);
+          map[item.id] = item;
+          lsWriteStore(storeName, map);
+        }
+        resolve(item);
+      });
+    }
+
+    function dbDelete(storeName, id) {
+      return new Promise((resolve) => {
+        if (memoryFallbackStore[storeName]) {
+          delete memoryFallbackStore[storeName][id];
+        }
+
+        if (storageDriver === 'indexeddb' && dbInstance) {
+          try {
+            const tx = dbInstance.transaction(storeName, 'readwrite');
+            const req = tx.objectStore(storeName).delete(id);
+            req.onsuccess = () => resolve();
+            req.onerror = () => {
+              const map = lsReadStore(storeName);
+              delete map[id];
+              lsWriteStore(storeName, map);
+              resolve();
+            };
+            return;
+          } catch (e) {
+            // Fall through
+          }
+        }
+        if (storageDriver === 'localstorage') {
+          const map = lsReadStore(storeName);
+          delete map[id];
+          lsWriteStore(storeName, map);
+        }
+        resolve();
+      });
+    }
+
+    function dbClear(storeName) {
+      return new Promise((resolve) => {
+        memoryFallbackStore[storeName] = {};
+
+        if (storageDriver === 'indexeddb' && dbInstance) {
+          try {
+            const tx = dbInstance.transaction(storeName, 'readwrite');
+            const req = tx.objectStore(storeName).clear();
+            req.onsuccess = () => resolve();
+            req.onerror = () => {
+              lsWriteStore(storeName, {});
+              resolve();
+            };
+            return;
+          } catch (e) {
+            // Fall through
+          }
+        }
+        if (storageDriver === 'localstorage') {
+          lsWriteStore(storeName, {});
+        }
+        resolve();
+      });
+    }
+
+    function updateStorageBadgeUI() {
+      const badge = document.getElementById('storage-mode-badge');
+      if (!badge) return;
+      if (storageDriver === 'indexeddb') {
+        badge.className = 'shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+        badge.innerHTML = '<i class="fa-solid fa-database mr-1"></i>IndexedDB Offline';
+      } else if (storageDriver === 'localstorage') {
+        badge.className = 'shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200';
+        badge.innerHTML = '<i class="fa-solid fa-hard-drive mr-1"></i>LocalStorage Mode';
+      } else {
+        badge.className = 'shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200';
+        badge.innerHTML = '<i class="fa-solid fa-memory mr-1"></i>Preview Memory Mode';
+      }
+    }
+
+    /**
+     * ============================================================================
+     * APPLICATION STATE & INITIALIZATION
+     * ============================================================================
+     */
+    let leaderProfile = null; // { id: 'leader', name, ministry, pin, lastBackup }
+    let appState = {
+      students: [],       // Array of student objects
+      events: [],         // Array of event objects { id, name, date, type, attendees: [studentId] }
+      dismissedFollowUps: {}, // Map of "studentId_lastEventId" -> timestamp
+      activeEventId: null,
+      checkinGradeFilter: 'All',
+      rosterGradeFilter: 'All',
+      currentPhotoDataUrl: '',
+      currentPermissionPdf: null, // { dataUrl, fileName, uploadedAt }
+      activePdfBlobUrl: null
+    };
+
+    // Dynamic PWA Manifest & Inline Service Worker registration (safely guarded for sandboxed previews)
+    function setupPWAEnvironment() {
+      try {
+        if (window.location.protocol === 'data:' || window.location.protocol === 'about:') return;
+        const manifest = {
+          name: 'YouthHub Check-In & Roster',
+          short_name: 'YouthHub',
+          start_url: '.',
+          display: 'standalone',
+          background_color: '#f8fafc',
+          theme_color: '#4f46e5',
+          icons: [
+            {
+              src: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%234f46e5"/><text x="50" y="66" font-size="52" text-anchor="middle" fill="white">🔥</text></svg>',
+              sizes: '192x192',
+              type: 'image/svg+xml'
+            }
+          ]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = URL.createObjectURL(blob);
+        document.head.appendChild(link);
+      } catch (e) {
+        // Ignore manifest errors in restricted preview sandboxes
+      }
+    }
+
+    function showAuthScreenReady(profile) {
+      document.getElementById('auth-screen').classList.remove('hidden');
+      if (!profile) {
+        document.getElementById('setup-form').classList.remove('hidden');
+        document.getElementById('login-form').classList.add('hidden');
+      } else {
+        document.getElementById('login-leader-display').textContent = profile.name;
+        document.getElementById('login-ministry-display').textContent = profile.ministry;
+        document.getElementById('setup-form').classList.add('hidden');
+        document.getElementById('login-form').classList.remove('hidden');
+      }
+    }
+
+    let appBooted = false;
+    async function bootApp() {
+      if (appBooted) return;
+      appBooted = true;
+
+      setupPWAEnvironment();
+
+      try {
+        await initDB();
+        updateStorageBadgeUI();
+
+        leaderProfile = await dbGet('meta', 'leader');
+        const dismissRec = await dbGet('meta', 'dismissedFollowUps');
+        if (dismissRec && dismissRec.map) {
+          appState.dismissedFollowUps = dismissRec.map;
+        }
+
+        appState.students = await dbGetAll('students');
+        appState.events = await dbGetAll('events');
+        // Sort events newest first
+        appState.events.sort((a, b) => b.date.localeCompare(a.date));
+        if (appState.events.length > 0) {
+          appState.activeEventId = appState.events[0].id;
+        }
+      } catch (err) {
+        console.warn('Startup storage fallback triggered:', err);
+        storageDriver = isLocalStorageAvailable() ? 'localstorage' : 'memory';
+        updateStorageBadgeUI();
+      }
+
+      // Always reveal either Setup or Sign-In form immediately—never hang
+      showAuthScreenReady(leaderProfile);
+    }
+
+    // Run bootApp reliably regardless of whether DOMContentLoaded already fired in preview
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootApp);
+    } else {
+      bootApp();
+    }
+    window.addEventListener('load', bootApp);
+
+    /**
+     * ============================================================================
+     * AUTHENTICATION & LEADER ACCOUNT HANDLERS (Never hangs on storage errors)
+     * ============================================================================
+     */
+    async function handleSetupSubmit(e) {
+      if (e && typeof e.preventDefault === 'function') {
+        e.preventDefault();
+      }
+      const errorEl = document.getElementById('setup-error');
+      const nameInput = document.getElementById('setup-leader-name');
+      const ministryInput = document.getElementById('setup-ministry-name');
+      const pinInput = document.getElementById('setup-pin');
+
+      const name = (nameInput ? nameInput.value : '').trim();
+      const ministry = (ministryInput ? ministryInput.value : '').trim();
+      const pin = (pinInput ? pinInput.value : '').trim();
+
+      if (!name) {
+        if (errorEl) {
+          errorEl.textContent = 'Please enter your Leader Name.';
+          errorEl.classList.remove('hidden');
+        }
+        if (nameInput) nameInput.focus();
+        return;
+      }
+      if (!ministry) {
+        if (errorEl) {
+          errorEl.textContent = 'Please enter your Ministry or Youth Group Name.';
+          errorEl.classList.remove('hidden');
+        }
+        if (ministryInput) ministryInput.focus();
+        return;
+      }
+      if (pin.length < 4) {
+        if (errorEl) {
+          errorEl.textContent = 'Please create a PIN or password with at least 4 characters.';
+          errorEl.classList.remove('hidden');
+        }
+        if (pinInput) pinInput.focus();
+        return;
+      }
+
+      if (errorEl) errorEl.classList.add('hidden');
+
+      const newProfile = {
+        id: 'leader',
+        name,
+        ministry,
+        pin,
+        lastBackup: null
+      };
+
+      leaderProfile = newProfile;
+      try {
+        await dbPut('meta', newProfile);
+      } catch (err) {
+        console.warn('Leader profile saved in memory fallback:', err);
+      }
+
+      enterUnlockedApp();
+      showToast(`Welcome, ${name}! Local leader account created.`, 'success');
+    }
+
+    async function quickDemoSetup() {
+      const demoProfile = {
+        id: 'leader',
+        name: 'Pastor Jordan',
+        ministry: 'Ignite Youth Ministry',
+        pin: '1234',
+        lastBackup: null
+      };
+      leaderProfile = demoProfile;
+      try {
+        await dbPut('meta', demoProfile);
+      } catch (err) {
+        console.warn('Demo profile saved in memory fallback:', err);
+      }
+
+      enterUnlockedApp();
+      if (typeof loadSampleData === 'function' && appState.students.length === 0) {
+        await loadSampleData(true);
+      }
+      showToast('Demo Mode active (PIN: 1234). Sample youth group loaded!', 'success');
+    }
+
+    function handleLoginSubmit(e) {
+      if (e && typeof e.preventDefault === 'function') {
+        e.preventDefault();
+      }
+      const pinInput = document.getElementById('login-pin-input');
+      const errorEl = document.getElementById('login-error');
+      const entered = (pinInput ? pinInput.value : '').trim();
+
+      if (!leaderProfile || entered === leaderProfile.pin) {
+        if (errorEl) errorEl.classList.add('hidden');
+        if (pinInput) pinInput.value = '';
+        enterUnlockedApp();
+      } else {
+        if (errorEl) {
+          errorEl.textContent = 'Incorrect PIN or password. Please try again.';
+          errorEl.classList.remove('hidden');
+        }
+        if (pinInput) {
+          pinInput.value = '';
+          pinInput.focus();
+        }
+      }
+    }
+
+    function enterUnlockedApp() {
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.remove('hidden');
+      document.getElementById('bottom-nav').classList.remove('hidden');
+
+      if (leaderProfile) {
+        document.getElementById('header-ministry-name').textContent = leaderProfile.ministry || 'Youth Ministry';
+        document.getElementById('header-leader-name').textContent = `Leader: ${leaderProfile.name || 'Leader'}`;
+        const setLeader = document.getElementById('settings-leader-name');
+        const setMin = document.getElementById('settings-ministry-name');
+        if (setLeader) setLeader.value = leaderProfile.name || '';
+        if (setMin) setMin.value = leaderProfile.ministry || '';
+        const backupLabel = document.getElementById('last-backup-label');
+        if (backupLabel && leaderProfile.lastBackup) {
+          backupLabel.textContent = `Last backup: ${leaderProfile.lastBackup}`;
+        }
+      }
+
+      if (typeof renderAllViews === 'function') {
+        renderAllViews();
+      } else {
+        if (typeof renderDashboard === 'function') renderDashboard();
+        if (typeof renderEventSelector === 'function') renderEventSelector();
+        if (typeof renderCheckInList === 'function') renderCheckInList();
+        if (typeof renderRosterList === 'function') renderRosterList();
+      }
+    }
+
+    function lockApp() {
+      document.getElementById('app-shell').classList.add('hidden');
+      document.getElementById('bottom-nav').classList.add('hidden');
+      showAuthScreenReady(leaderProfile);
+      const pinInput = document.getElementById('login-pin-input');
+      if (pinInput) {
+        pinInput.value = '';
+        setTimeout(() => pinInput.focus(), 50);
+      }
+    }
+
+    function downloadStandaloneAppHTML() {
+      try {
+        // Clone current document and reset UI to clean initial state before serializing
+        const clone = document.documentElement.cloneNode(true);
+        const authEl = clone.querySelector('#auth-screen');
+        const shellEl = clone.querySelector('#app-shell');
+        const navEl = clone.querySelector('#bottom-nav');
+        if (authEl) authEl.classList.remove('hidden');
+        if (shellEl) shellEl.classList.add('hidden');
+        if (navEl) navEl.classList.add('hidden');
+
+        const htmlContent = '<!DOCTYPE html>\n' + clone.outerHTML;
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'YouthHub-CheckIn-App.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Downloaded YouthHub-CheckIn-App.html!', 'success');
+      } catch (err) {
+        console.error('Export HTML error:', err);
+        showToast('Could not download HTML in this preview frame.', 'error');
+      }
+    }
+
+    /**
+     * ============================================================================
+     * BUILT-IN PERMISSION FORM PDF VIEWER
+     * ============================================================================
+     */
+    function openPdfViewerModal() {
+      const pdf = appState.currentPermissionPdf;
+      if (!pdf || !pdf.dataUrl) {
+        showToast('No PDF uploaded for this student.', 'warning');
+        return;
+      }
+
+      if (appState.activePdfBlobUrl) {
+        try { URL.revokeObjectURL(appState.activePdfBlobUrl); } catch (e) {}
+        appState.activePdfBlobUrl = null;
+      }
+
+      try {
+        let previewSrc = pdf.dataUrl;
+        try {
+          const blobUrl = dataUrlToBlobUrl(pdf.dataUrl);
+          appState.activePdfBlobUrl = blobUrl;
+          previewSrc = blobUrl;
+        } catch (blobErr) {
+          // Fallback directly to dataUrl in strict sandboxed iframes
+          previewSrc = pdf.dataUrl;
+        }
+
+        const studentName = document.getElementById('st-name').value.trim() || 'Student';
+        document.getElementById('pdf-viewer-title').textContent = pdf.fileName || 'Signed Permission Form.pdf';
+        document.getElementById('pdf-viewer-subtitle').textContent = `${studentName} • Uploaded ${pdf.uploadedAt || ''}`;
+        document.getElementById('pdf-viewer-frame').src = previewSrc;
+
+        const extLink = document.getElementById('pdf-viewer-open-external');
+        extLink.href = previewSrc;
+        extLink.download = pdf.fileName || `${studentName.replace(/\s+/g, '_')}_Permission_Form.pdf`;
+
+        document.getElementById('pdf-viewer-modal').classList.remove('hidden');
+      } catch (err) {
+        console.error('PDF preview error:', err);
+        showToast('Unable to preview PDF on this browser.', 'error');
+      }
+    }
+
+    function closePdfViewerModal() {
+      document.getElementById('pdf-viewer-modal').classList.add('hidden');
+      document.getElementById('pdf-viewer-frame').src = 'about:blank';
+      if (appState.activePdfBlobUrl) {
+        try { URL.revokeObjectURL(appState.activePdfBlobUrl); } catch (e) {}
+        appState.activePdfBlobUrl = null;
+      }
+    }
+
+    /**
+     * ============================================================================
+     * NAVIGATION, TOASTS & CONFIRMATION HELPERS
+     * ============================================================================
+     */
+    function switchTab(tabName) {
+      const views = ['dashboard', 'checkin', 'students', 'settings'];
+      views.forEach((v) => {
+        const viewEl = document.getElementById(`view-${v}`);
+        const navEl = document.getElementById(`nav-${v}`);
+        if (viewEl) {
+          if (v === tabName) {
+            viewEl.classList.remove('hidden');
+          } else {
+            viewEl.classList.add('hidden');
+          }
+        }
+        if (navEl) {
+          if (v === tabName) {
+            navEl.classList.remove('text-slate-400', 'font-medium');
+            navEl.classList.add('text-indigo-600', 'font-bold');
+          } else {
+            navEl.classList.remove('text-indigo-600', 'font-bold');
+            navEl.classList.add('text-slate-400', 'font-medium');
+          }
+        }
+      });
+
+      if (tabName === 'dashboard') renderDashboard();
+      if (tabName === 'checkin') {
+        renderEventSelector();
+        renderCheckInList();
+      }
+      if (tabName === 'students') renderRosterList();
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        error: 'bg-rose-600 text-white border-rose-500',
+        warning: 'bg-amber-500 text-white border-amber-400',
+        info: 'bg-slate-900 text-white border-slate-700'
+      };
+      const icons = {
+        success: 'fa-circle-check',
+        error: 'fa-circle-exclamation',
+        warning: 'fa-triangle-exclamation',
+        info: 'fa-circle-info'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2.5 animate-pop ${colors[type] || colors.info}`;
+      toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info} text-sm shrink-0"></i><span class="flex-1 leading-snug">${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.25s ease';
+        setTimeout(() => toast.remove(), 260);
+      }, 3200);
+    }
+
+    function showConfirmDialog(title, message, okLabel = 'Confirm', isDanger = false) {
+      return new Promise((resolve) => {
+        const modal = document.getElementById('confirm-modal');
+        const titleEl = document.getElementById('confirm-title');
+        const msgEl = document.getElementById('confirm-message');
+        const okBtn = document.getElementById('confirm-ok-btn');
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        okBtn.textContent = okLabel;
+        okBtn.className = isDanger
+          ? 'flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm'
+          : 'flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm';
+
+        modal.classList.remove('hidden');
+
+        const cleanup = (result) => {
+          modal.classList.add('hidden');
+          okBtn.onclick = null;
+          cancelBtn.onclick = null;
+          resolve(result);
+        };
+
+        okBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+      });
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getDefaultAvatar(name, gender) {
+      const initials = (name || 'ST')
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((n) => n[0].toUpperCase())
+        .join('') || 'ST';
+      const bg = gender === 'Female' ? '%23ec4899' : '%234f46e5';
+      return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${bg}"/><text x="50" y="61" font-family="sans-serif" font-size="36" font-weight="bold" text-anchor="middle" fill="white">${initials}</text></svg>`;
+    }
+
+    function formatDisplayDate(isoDate) {
+      if (!isoDate) return '';
+      const parts = isoDate.split('-');
+      if (parts.length !== 3) return isoDate;
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function dataUrlToBlobUrl(dataUrl) {
+      const parts = dataUrl.split(',');
+      const mimeMatch = parts[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+      const bstr = atob(parts[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      return URL.createObjectURL(blob);
+    }
+
+    function copyTextFallback(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast('Message copied to clipboard!', 'success');
+      } catch (e) {
+        showToast('Could not copy message.', 'error');
+      }
+      document.body.removeChild(ta);
+    }
+
+    function renderAllViews() {
+      renderGradeFilterPills();
+      renderDashboard();
+      renderEventSelector();
+      renderCheckInList();
+      renderRosterList();
+    }
+
+    /**
+     * ============================================================================
+     * SMART ALERTS ENGINE (Birthdays in Next 14 Days & 2 Missed Midweeks)
+     * ============================================================================
+     */
+    function getUpcomingBirthdays() {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const results = [];
+
+      appState.students.forEach((st) => {
+        if (!st.dob) return;
+        const parts = st.dob.split('-');
+        if (parts.length !== 3) return;
+        const birthYear = Number(parts[0]);
+        const birthMonth = Number(parts[1]) - 1;
+        const birthDay = Number(parts[2]);
+
+        let nextBday = new Date(today.getFullYear(), birthMonth, birthDay);
+        if (nextBday < today) {
+          nextBday = new Date(today.getFullYear() + 1, birthMonth, birthDay);
+        }
+
+        const diffDays = Math.round((nextBday - today) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays <= 14) {
+          const turningAge = nextBday.getFullYear() - birthYear;
+          results.push({
+            student: st,
+            diffDays,
+            turningAge,
+            dateLabel: nextBday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          });
+        }
+      });
+
+      return results.sort((a, b) => a.diffDays - b.diffDays);
+    }
+
+    function getMissedTwoMidweekAlerts() {
+      const midweekEvents = appState.events
+        .filter((ev) => ev.type === 'Midweek Service')
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+      if (midweekEvents.length < 2) return [];
+
+      const latest = midweekEvents[0];
+      const previous = midweekEvents[1];
+      const latestAttendees = new Set(latest.attendees || []);
+      const prevAttendees = new Set(previous.attendees || []);
+
+      const alerts = [];
+      appState.students.forEach((st) => {
+        const dismissKey = `${st.id}_${latest.id}`;
+        if (appState.dismissedFollowUps[dismissKey]) return;
+
+        if (!latestAttendees.has(st.id) && !prevAttendees.has(st.id)) {
+          const firstName = (st.name || 'Student').split(' ')[0];
+          const suggestion = st.canText && st.phone
+            ? `Send ${firstName} a quick text: "Hey ${firstName}! Missed seeing you at youth the last couple weeks—hope your week is going great!"`
+            : st.parent1Phone
+            ? `Check in with ${st.parent1Name || 'parent'} (${st.parent1Phone}) to let them know ${firstName} was missed.`
+            : `Assign a small group leader to check in with ${firstName} at school or Sunday morning.`;
+
+          alerts.push({
+            student: st,
+            dismissKey,
+            missedDates: `${formatDisplayDate(previous.date)} & ${formatDisplayDate(latest.date)}`,
+            suggestion
+          });
+        }
+      });
+
+      return alerts;
+    }
+
+    function renderDashboard() {
+      const birthdays = getUpcomingBirthdays();
+      const missed = getMissedTwoMidweekAlerts();
+      const totalAlerts = birthdays.length + missed.length;
+
+      document.getElementById('stat-total-students').textContent = appState.students.length;
+      document.getElementById('stat-total-events').textContent = appState.events.length;
+      document.getElementById('stat-total-alerts').textContent = totalAlerts;
+      document.getElementById('badge-birthdays').textContent = birthdays.length;
+      document.getElementById('badge-missed').textContent = missed.length;
+
+      const navDot = document.getElementById('nav-alert-dot');
+      if (navDot) {
+        if (totalAlerts > 0) navDot.classList.remove('hidden');
+        else navDot.classList.add('hidden');
+      }
+
+      // Render Birthday Cards
+      const bdayList = document.getElementById('birthday-alerts-list');
+      if (birthdays.length === 0) {
+        bdayList.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200/80 p-4 text-center text-xs text-slate-400">
+            No student birthdays in the next 14 days.
+          </div>`;
+      } else {
+        bdayList.innerHTML = birthdays.map((item) => {
+          const st = item.student;
+          const whenText = item.diffDays === 0 ? 'Today! 🎉' : item.diffDays === 1 ? 'Tomorrow' : `In ${item.diffDays} days (${item.dateLabel})`;
+          const firstName = escapeHtml((st.name || '').split(' ')[0]);
+          const msg = `Happy Birthday ${firstName}! 🎉 Praying you have an awesome year ahead—glad you're part of our youth family!`;
+          const smsHref = st.phone ? `sms:${st.phone.replace(/[^0-9+]/g, '')}?body=${encodeURIComponent(msg)}` : '';
+
+          return `
+            <div class="bg-white rounded-2xl border border-pink-100 p-3.5 shadow-xs flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="${st.photo || getDefaultAvatar(st.name, st.gender)}" alt="${escapeHtml(st.name)}" class="w-11 h-11 rounded-xl object-cover shrink-0 border border-pink-100" />
+                <div class="min-w-0">
+                  <p class="font-bold text-sm text-slate-900 truncate">${escapeHtml(st.name)} <span class="text-xs font-semibold text-pink-600">• Turning ${item.turningAge}</span></p>
+                  <p class="text-xs text-slate-500">${whenText} • ${escapeHtml(st.grade)} Grade</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${st.canText && st.phone ? `<a href="${smsHref}" class="px-3 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold"><i class="fa-solid fa-comment-sms mr-1"></i>Text</a>` : ''}
+                <button type="button" onclick="copyTextFallback(${JSON.stringify(msg)})" title="Copy Birthday Message" class="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      // Render Missed 2 Midweek Services Cards
+      const missedList = document.getElementById('missed-alerts-list');
+      if (missed.length === 0) {
+        missedList.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200/80 p-4 text-center text-xs text-slate-400">
+            All active students are caught up on midweek attendance!
+          </div>`;
+      } else {
+        missedList.innerHTML = missed.map((item) => {
+          const st = item.student;
+          const cleanPhone = (st.phone || st.parent1Phone || '').replace(/[^0-9+]/g, '');
+          return `
+            <div class="bg-white rounded-2xl border border-amber-200/80 p-3.5 shadow-xs space-y-2.5">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <img src="${st.photo || getDefaultAvatar(st.name, st.gender)}" alt="${escapeHtml(st.name)}" class="w-11 h-11 rounded-xl object-cover shrink-0 border border-amber-100" />
+                  <div class="min-w-0">
+                    <p class="font-bold text-sm text-slate-900 truncate">${escapeHtml(st.name)} <span class="text-xs font-normal text-slate-500">(${escapeHtml(st.grade)})</span></p>
+                    <p class="text-[11px] font-semibold text-amber-700">Missed: ${escapeHtml(item.missedDates)}</p>
+                  </div>
+                </div>
+                <button type="button" onclick="dismissFollowUp('${escapeHtml(item.dismissKey)}')" class="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-bold shrink-0">
+                  <i class="fa-solid fa-check mr-1"></i>Followed Up
+                </button>
+              </div>
+              <p class="text-xs text-slate-600 bg-amber-50/70 rounded-xl p-2.5 leading-relaxed">
+                <i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> ${escapeHtml(item.suggestion)}
+              </p>
+              ${cleanPhone ? `
+                <div class="flex gap-2">
+                  <a href="sms:${cleanPhone}" class="flex-1 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold text-center">
+                    <i class="fa-solid fa-comment-sms mr-1"></i>Send Text
+                  </a>
+                  <a href="tel:${cleanPhone}" class="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold text-center">
+                    <i class="fa-solid fa-phone mr-1"></i>Call
+                  </a>
+                </div>` : ''}
+            </div>`;
+        }).join('');
+      }
+    }
+
+    async function dismissFollowUp(dismissKey) {
+      appState.dismissedFollowUps[dismissKey] = Date.now();
+      await dbPut('meta', { id: 'dismissedFollowUps', map: appState.dismissedFollowUps });
+      renderDashboard();
+      showToast('Marked as followed up!', 'success');
+    }
+
+    function requestBrowserNotifications() {
+      if (!('Notification' in window)) {
+        showToast('Push notifications are not supported in this browser.', 'warning');
+        return;
+      }
+      Notification.requestPermission().then((perm) => {
+        if (perm === 'granted') {
+          const bdays = getUpcomingBirthdays();
+          const missed = getMissedTwoMidweekAlerts();
+          new Notification('YouthHub Alerts Enabled', {
+            body: `${bdays.length} upcoming birthday(s) and ${missed.length} follow-up reminder(s) active.`
+          });
+          showToast('Push notifications enabled!', 'success');
+        } else {
+          showToast('Notification permission was declined.', 'warning');
+        }
+      }).catch(() => {
+        showToast('Could not request notifications in preview mode.', 'warning');
+      });
+    }
+
+    /**
+     * ============================================================================
+     * EVENTS & CHECK-IN MANAGEMENT
+     * ============================================================================
+     */
+    function openCreateEventModal() {
+      const todayIso = new Date().toISOString().split('T')[0];
+      document.getElementById('event-name-input').value = '';
+      document.getElementById('event-date-input').value = todayIso;
+      document.getElementById('event-type-input').value = 'Midweek Service';
+      document.getElementById('event-modal').classList.remove('hidden');
+    }
+
+    function closeCreateEventModal() {
+      document.getElementById('event-modal').classList.add('hidden');
+    }
+
+    async function saveNewEvent(e) {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      const name = document.getElementById('event-name-input').value.trim();
+      const date = document.getElementById('event-date-input').value;
+      const type = document.getElementById('event-type-input').value;
+
+      if (!name || !date) {
+        showToast('Please enter an event name and date.', 'error');
+        return;
+      }
+
+      const newEvent = {
+        id: 'ev_' + Date.now(),
+        name,
+        date,
+        type,
+        attendees: []
+      };
+
+      appState.events.unshift(newEvent);
+      appState.events.sort((a, b) => b.date.localeCompare(a.date));
+      appState.activeEventId = newEvent.id;
+
+      await dbPut('events', newEvent);
+      closeCreateEventModal();
+      renderEventSelector();
+      renderCheckInList();
+      renderDashboard();
+      showToast(`Created "${name}"! Tap students to check in.`, 'success');
+    }
+
+    function handleEventChange() {
+      const select = document.getElementById('active-event-select');
+      appState.activeEventId = select.value;
+      renderEventSelector();
+      renderCheckInList();
+    }
+
+    async function deleteCurrentEvent() {
+      const activeEv = appState.events.find((ev) => ev.id === appState.activeEventId);
+      if (!activeEv) return;
+
+      const confirmed = await showConfirmDialog(
+        'Delete Event?',
+        `Remove "${activeEv.name}" (${formatDisplayDate(activeEv.date)}) and its attendance log?`,
+        'Delete Event',
+        true
+      );
+      if (!confirmed) return;
+
+      await dbDelete('events', activeEv.id);
+      appState.events = appState.events.filter((ev) => ev.id !== activeEv.id);
+      appState.activeEventId = appState.events.length > 0 ? appState.events[0].id : null;
+
+      renderEventSelector();
+      renderCheckInList();
+      renderDashboard();
+      showToast('Event deleted.', 'info');
+    }
+
+    function renderEventSelector() {
+      const select = document.getElementById('active-event-select');
+      const liveStats = document.getElementById('event-live-stats');
+      const controls = document.getElementById('checkin-controls');
+      const delBtn = document.getElementById('btn-delete-event');
+
+      if (appState.events.length === 0) {
+        select.innerHTML = '<option value="">No events yet — tap "+ New Event" above</option>';
+        liveStats.classList.add('hidden');
+        controls.classList.add('hidden');
+        delBtn.classList.add('hidden');
+        return;
+      }
+
+      if (!appState.activeEventId || !appState.events.some((ev) => ev.id === appState.activeEventId)) {
+        appState.activeEventId = appState.events[0].id;
+      }
+
+      select.innerHTML = appState.events.map((ev) => `
+        <option value="${ev.id}" ${ev.id === appState.activeEventId ? 'selected' : ''}>
+          ${escapeHtml(ev.name)} (${formatDisplayDate(ev.date)})
+        </option>`).join('');
+
+      const activeEv = appState.events.find((ev) => ev.id === appState.activeEventId);
+      if (activeEv) {
+        liveStats.classList.remove('hidden');
+        controls.classList.remove('hidden');
+        delBtn.classList.remove('hidden');
+        document.getElementById('active-event-meta').textContent = `${activeEv.type} • ${formatDisplayDate(activeEv.date)}`;
+        document.getElementById('checkin-count-display').textContent = (activeEv.attendees || []).length;
+      }
+    }
+
+    function renderGradeFilterPills() {
+      const grades = ['All', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+
+      const checkinContainer = document.getElementById('checkin-grade-filters');
+      if (checkinContainer) {
+        checkinContainer.innerHTML = grades.map((g) => {
+          const active = appState.checkinGradeFilter === g;
+          return `<button type="button" onclick="setCheckinGradeFilter('${g}')" class="px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${active ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}">${g === 'All' ? 'All Grades' : g}</button>`;
+        }).join('');
+      }
+
+      const rosterContainer = document.getElementById('roster-grade-filters');
+      if (rosterContainer) {
+        rosterContainer.innerHTML = grades.map((g) => {
+          const active = appState.rosterGradeFilter === g;
+          return `<button type="button" onclick="setRosterGradeFilter('${g}')" class="px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${active ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}">${g === 'All' ? 'All Grades' : g}</button>`;
+        }).join('');
+      }
+    }
+
+    function setCheckinGradeFilter(grade) {
+      appState.checkinGradeFilter = grade;
+      renderGradeFilterPills();
+      renderCheckInList();
+    }
+
+    function setRosterGradeFilter(grade) {
+      appState.rosterGradeFilter = grade;
+      renderGradeFilterPills();
+      renderRosterList();
+    }
+
+    function renderCheckInList() {
+      const container = document.getElementById('checkin-student-list');
+      const activeEv = appState.events.find((ev) => ev.id === appState.activeEventId);
+
+      if (!activeEv) {
+        container.innerHTML = `
+          <div class="col-span-full bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl mx-auto">
+              <i class="fa-solid fa-calendar-plus"></i>
+            </div>
+            <p class="font-bold text-slate-800 text-sm">No Service or Event Selected</p>
+            <p class="text-xs text-slate-500">Tap <strong>+ New Event</strong> above to start taking attendance.</p>
+          </div>`;
+        return;
+      }
+
+      const query = (document.getElementById('checkin-search').value || '').toLowerCase().trim();
+      const attendeeSet = new Set(activeEv.attendees || []);
+
+      const filtered = appState.students
+        .filter((st) => {
+          const matchesGrade = appState.checkinGradeFilter === 'All' || st.grade === appState.checkinGradeFilter;
+          const matchesName = !query || (st.name || '').toLowerCase().includes(query);
+          return matchesGrade && matchesName;
+        })
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-2">
+            <p class="text-sm font-bold text-slate-700">No matching students found</p>
+            <p class="text-xs text-slate-500">Tap <strong>First-Time Guest</strong> above to register & check in a new student.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map((st) => {
+        const isCheckedIn = attendeeSet.has(st.id);
+        return `
+          <button type="button" onclick="toggleStudentCheckIn('${st.id}')" class="w-full text-left p-3 rounded-2xl border transition flex items-center justify-between gap-3 ${isCheckedIn ? 'bg-emerald-50 border-emerald-400 shadow-xs' : 'bg-white border-slate-200 hover:border-indigo-300'}">
+            <div class="flex items-center gap-3 min-w-0">
+              <img src="${st.photo || getDefaultAvatar(st.name, st.gender)}" alt="${escapeHtml(st.name)}" class="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200" />
+              <div class="min-w-0">
+                <p class="font-bold text-sm text-slate-900 truncate">${escapeHtml(st.name)}</p>
+                <p class="text-xs text-slate-500 truncate">${escapeHtml(st.grade)} Grade • ${escapeHtml(st.school || st.gender)}</p>
+              </div>
+            </div>
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-base ${isCheckedIn ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}">
+              <i class="fa-solid ${isCheckedIn ? 'fa-check' : 'fa-plus'}"></i>
+            </div>
+          </button>`;
+      }).join('');
+    }
+
+    async function toggleStudentCheckIn(studentId) {
+      const activeEv = appState.events.find((ev) => ev.id === appState.activeEventId);
+      if (!activeEv) return;
+
+      if (!Array.isArray(activeEv.attendees)) activeEv.attendees = [];
+      const idx = activeEv.attendees.indexOf(studentId);
+      if (idx >= 0) {
+        activeEv.attendees.splice(idx, 1);
+      } else {
+        activeEv.attendees.push(studentId);
+      }
+
+      await dbPut('events', activeEv);
+      document.getElementById('checkin-count-display').textContent = activeEv.attendees.length;
+      renderCheckInList();
+      renderDashboard();
+    }
+
+    /**
+     * ============================================================================
+     * STUDENT ROSTER & PROFILE MODAL (With Photo, Social Media Release & PDF)
+     * ============================================================================
+     */
+    function renderRosterList() {
+      const container = document.getElementById('roster-list');
+      const query = (document.getElementById('roster-search').value || '').toLowerCase().trim();
+
+      const filtered = appState.students
+        .filter((st) => {
+          const matchesGrade = appState.rosterGradeFilter === 'All' || st.grade === appState.rosterGradeFilter;
+          const hay = `${st.name || ''} ${st.school || ''} ${st.phone || ''} ${st.parent1Name || ''}`.toLowerCase();
+          return matchesGrade && (!query || hay.includes(query));
+        })
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center space-y-2">
+            <p class="font-bold text-slate-800 text-sm">No students in roster</p>
+            <p class="text-xs text-slate-500">Tap <strong>+ Add Student</strong> above or load sample youth group data in Backup.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map((st) => {
+        const socialBadge = st.photoRelease
+          ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"><i class="fa-solid fa-camera mr-1"></i>SOCIAL OK</span>`
+          : `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"><i class="fa-solid fa-ban mr-1"></i>NO SOCIAL</span>`;
+
+        const pdfBadge = st.permissionPdf && st.permissionPdf.dataUrl
+          ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</span>`
+          : '';
+
+        const medBadge = st.medical
+          ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800"><i class="fa-solid fa-kit-medical mr-1"></i>Med</span>`
+          : '';
+
+        return `
+          <div onclick="openStudentModal('${st.id}', false)" class="bg-white rounded-2xl border border-slate-200 hover:border-indigo-300 p-3.5 shadow-xs flex items-center justify-between gap-3 cursor-pointer transition">
+            <div class="flex items-center gap-3 min-w-0">
+              <img src="${st.photo || getDefaultAvatar(st.name, st.gender)}" alt="${escapeHtml(st.name)}" class="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200" />
+              <div class="min-w-0">
+                <p class="font-bold text-sm text-slate-900 truncate">${escapeHtml(st.name)}</p>
+                <p class="text-xs text-slate-500 truncate">${escapeHtml(st.grade)} Grade • ${escapeHtml(st.school || 'School not listed')}</p>
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                  ${socialBadge}
+                  ${pdfBadge}
+                  ${medBadge}
+                </div>
+              </div>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-300 text-xs shrink-0"></i>
+          </div>`;
+      }).join('');
+    }
+
+    function switchStudentFormTab(tab) {
+      const basicPanel = document.getElementById('student-panel-basic');
+      const leaderPanel = document.getElementById('student-panel-leader');
+      const tabBasic = document.getElementById('stab-basic');
+      const tabLeader = document.getElementById('stab-leader');
+
+      if (tab === 'basic') {
+        basicPanel.classList.remove('hidden');
+        leaderPanel.classList.add('hidden');
+        tabBasic.className = 'px-4 py-2.5 text-xs font-bold border-b-2 border-indigo-600 text-indigo-600';
+        tabLeader.className = 'px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500';
+      } else {
+        basicPanel.classList.add('hidden');
+        leaderPanel.classList.remove('hidden');
+        tabLeader.className = 'px-4 py-2.5 text-xs font-bold border-b-2 border-indigo-600 text-indigo-600';
+        tabBasic.className = 'px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500';
+      }
+    }
+
+    function updatePermissionPdfUI() {
+      const pdf = appState.currentPermissionPdf;
+      const badge = document.getElementById('pdf-status-badge');
+      const emptyBox = document.getElementById('pdf-upload-empty');
+      const cardBox = document.getElementById('pdf-uploaded-card');
+
+      if (pdf && pdf.dataUrl) {
+        badge.textContent = 'PDF Attached';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+        emptyBox.classList.add('hidden');
+        cardBox.classList.remove('hidden');
+        document.getElementById('pdf-filename-display').textContent = pdf.fileName || 'Signed_Permission_Form.pdf';
+        document.getElementById('pdf-date-display').textContent = pdf.uploadedAt ? `Uploaded ${pdf.uploadedAt}` : 'Attached';
+      } else {
+        badge.textContent = 'None Uploaded';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600';
+        emptyBox.classList.remove('hidden');
+        cardBox.classList.add('hidden');
+      }
+    }
+
+    function openStudentModal(studentId = null, autoCheckIn = false) {
+      switchStudentFormTab('basic');
+      document.getElementById('student-auto-checkin-field').value = autoCheckIn ? 'true' : 'false';
+      const delBtn = document.getElementById('btn-delete-student');
+
+      if (studentId) {
+        const st = appState.students.find((s) => s.id === studentId);
+        if (!st) return;
+
+        document.getElementById('student-modal-title').textContent = 'Edit Student Profile';
+        document.getElementById('student-id-field').value = st.id;
+        delBtn.classList.remove('hidden');
+
+        appState.currentPhotoDataUrl = st.photo || '';
+        document.getElementById('student-photo-preview').src = st.photo || getDefaultAvatar(st.name, st.gender);
+        document.getElementById('st-name').value = st.name || '';
+        document.getElementById('st-gender').value = st.gender || 'Male';
+        document.getElementById('st-grade').value = st.grade || '6th';
+        document.getElementById('st-dob').value = st.dob || '';
+        document.getElementById('st-school').value = st.school || '';
+        document.getElementById('st-phone').value = st.phone || '';
+        document.getElementById('st-can-text').checked = st.canText !== false;
+        document.getElementById('st-address').value = st.address || '';
+
+        document.getElementById('st-parent1-name').value = st.parent1Name || '';
+        document.getElementById('st-parent1-phone').value = st.parent1Phone || '';
+        document.getElementById('st-parent2-name').value = st.parent2Name || '';
+        document.getElementById('st-parent2-contact').value = st.parent2Contact || '';
+        document.getElementById('st-emergency').value = st.emergency || '';
+        document.getElementById('st-medical').value = st.medical || '';
+        document.getElementById('st-insurance').value = st.insurance || '';
+        document.getElementById('st-perm-signed').checked = Boolean(st.permSigned);
+        document.getElementById('st-photo-release').checked = Boolean(st.photoRelease);
+        document.getElementById('st-notes').value = st.notes || '';
+
+        appState.currentPermissionPdf = st.permissionPdf ? { ...st.permissionPdf } : null;
+      } else {
+        document.getElementById('student-modal-title').textContent = autoCheckIn ? 'Register First-Time Guest' : 'Register New Student';
+        document.getElementById('student-id-field').value = '';
+        delBtn.classList.add('hidden');
+
+        appState.currentPhotoDataUrl = '';
+        document.getElementById('student-photo-preview').src = getDefaultAvatar('New Student', 'Male');
+        document.getElementById('st-name').value = '';
+        document.getElementById('st-gender').value = 'Male';
+        document.getElementById('st-grade').value = '6th';
+        document.getElementById('st-dob').value = '';
+        document.getElementById('st-school').value = '';
+        document.getElementById('st-phone').value = '';
+        document.getElementById('st-can-text').checked = true;
+        document.getElementById('st-address').value = '';
+
+        document.getElementById('st-parent1-name').value = '';
+        document.getElementById('st-parent1-phone').value = '';
+        document.getElementById('st-parent2-name').value = '';
+        document.getElementById('st-parent2-contact').value = '';
+        document.getElementById('st-emergency').value = '';
+        document.getElementById('st-medical').value = '';
+        document.getElementById('st-insurance').value = '';
+        document.getElementById('st-perm-signed').checked = false;
+        document.getElementById('st-photo-release').checked = false;
+        document.getElementById('st-notes').value = '';
+
+        appState.currentPermissionPdf = null;
+      }
+
+      updatePermissionPdfUI();
+      document.getElementById('student-modal').classList.remove('hidden');
+    }
+
+    function closeStudentModal() {
+      document.getElementById('student-modal').classList.add('hidden');
+    }
+
+    function handleStudentPhotoUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Resize photo to max 320px for fast local storage and JSON backup
+          const canvas = document.createElement('canvas');
+          const maxDim = 320;
+          let w = img.width;
+          let h = img.height;
+          if (w > h && w > maxDim) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else if (h > maxDim) {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.8);
+          appState.currentPhotoDataUrl = compressed;
+          document.getElementById('student-photo-preview').src = compressed;
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearStudentPhoto() {
+      appState.currentPhotoDataUrl = '';
+      const name = document.getElementById('st-name').value || 'Student';
+      const gender = document.getElementById('st-gender').value || 'Male';
+      document.getElementById('student-photo-preview').src = getDefaultAvatar(name, gender);
+    }
+
+    function handlePermissionPdfUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('Please choose a PDF file under 10 MB.', 'warning');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const uploadedAt = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        appState.currentPermissionPdf = {
+          dataUrl: e.target.result,
+          fileName: file.name,
+          uploadedAt
+        };
+        document.getElementById('st-perm-signed').checked = true;
+        updatePermissionPdfUI();
+        showToast('Permission form PDF attached!', 'success');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removePermissionPdf() {
+      appState.currentPermissionPdf = null;
+      updatePermissionPdfUI();
+      showToast('Attached PDF removed.', 'info');
+    }
+
+    async function saveStudentProfile(e) {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+
+      const existingId = document.getElementById('student-id-field').value;
+      const autoCheckIn = document.getElementById('student-auto-checkin-field').value === 'true';
+      const name = document.getElementById('st-name').value.trim();
+      const dob = document.getElementById('st-dob').value;
+
+      if (!name) {
+        switchStudentFormTab('basic');
+        showToast('Please enter the student’s full name.', 'error');
+        return;
+      }
+      if (!dob) {
+        switchStudentFormTab('basic');
+        showToast('Please enter the student’s date of birth.', 'error');
+        return;
+      }
+
+      const studentRecord = {
+        id: existingId || 'st_' + Date.now(),
+        name,
+        gender: document.getElementById('st-gender').value,
+        grade: document.getElementById('st-grade').value,
+        dob,
+        school: document.getElementById('st-school').value.trim(),
+        phone: document.getElementById('st-phone').value.trim(),
+        canText: document.getElementById('st-can-text').checked,
+        address: document.getElementById('st-address').value.trim(),
+        photo: appState.currentPhotoDataUrl || '',
+
+        parent1Name: document.getElementById('st-parent1-name').value.trim(),
+        parent1Phone: document.getElementById('st-parent1-phone').value.trim(),
+        parent2Name: document.getElementById('st-parent2-name').value.trim(),
+        parent2Contact: document.getElementById('st-parent2-contact').value.trim(),
+        emergency: document.getElementById('st-emergency').value.trim(),
+        medical: document.getElementById('st-medical').value.trim(),
+        insurance: document.getElementById('st-insurance').value.trim(),
+        permSigned: document.getElementById('st-perm-signed').checked,
+        photoRelease: document.getElementById('st-photo-release').checked,
+        permissionPdf: appState.currentPermissionPdf ? { ...appState.currentPermissionPdf } : null,
+        notes: document.getElementById('st-notes').value.trim()
+      };
+
+      await dbPut('students', studentRecord);
+
+      if (existingId) {
+        const idx = appState.students.findIndex((s) => s.id === existingId);
+        if (idx >= 0) appState.students[idx] = studentRecord;
+      } else {
+        appState.students.push(studentRecord);
+      }
+
+      if (autoCheckIn && appState.activeEventId) {
+        const activeEv = appState.events.find((ev) => ev.id === appState.activeEventId);
+        if (activeEv) {
+          if (!Array.isArray(activeEv.attendees)) activeEv.attendees = [];
+          if (!activeEv.attendees.includes(studentRecord.id)) {
+            activeEv.attendees.push(studentRecord.id);
+            await dbPut('events', activeEv);
+          }
+        }
+      }
+
+      closeStudentModal();
+      renderAllViews();
+      showToast(existingId ? 'Student profile updated!' : `${name} added to roster!`, 'success');
+    }
+
+    async function deleteCurrentStudent() {
+      const existingId = document.getElementById('student-id-field').value;
+      if (!existingId) return;
+
+      const st = appState.students.find((s) => s.id === existingId);
+      const confirmed = await showConfirmDialog(
+        'Delete Student?',
+        `Permanently delete ${st ? st.name : 'this student'} and their forms from this device?`,
+        'Delete Student',
+        true
+      );
+      if (!confirmed) return;
+
+      await dbDelete('students', existingId);
+      appState.students = appState.students.filter((s) => s.id !== existingId);
+
+      closeStudentModal();
+      renderAllViews();
+      showToast('Student removed from roster.', 'info');
+    }
+
+    /**
+     * ============================================================================
+     * BACKUP (JSON FOR GOOGLE DRIVE), SAMPLE DATA & LEADER SETTINGS
+     * ============================================================================
+     */
+    async function exportBackupJSON() {
+      try {
+        const payload = {
+          app: 'YouthHubCheckIn',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          leader: leaderProfile,
+          students: appState.students,
+          events: appState.events,
+          dismissedFollowUps: appState.dismissedFollowUps
+        };
+
+        const jsonStr = JSON.stringify(payload, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const dateStamp = new Date().toISOString().split('T')[0];
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `YouthHub-Backup-${dateStamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        const nowLabel = new Date().toLocaleString();
+        if (leaderProfile) {
+          leaderProfile.lastBackup = nowLabel;
+          await dbPut('meta', leaderProfile);
+          document.getElementById('last-backup-label').textContent = `Last backup: ${nowLabel}`;
+        }
+
+        showToast('Backup downloaded! Save it to your Google Drive.', 'success');
+      } catch (err) {
+        console.error('Export backup error:', err);
+        showToast('Could not export backup file in this preview.', 'error');
+      }
+    }
+
+    function handleImportBackup(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed || !Array.isArray(parsed.students) || !Array.isArray(parsed.events)) {
+            showToast('Invalid YouthHub backup file.', 'error');
+            return;
+          }
+
+          const confirmed = await showConfirmDialog(
+            'Restore Backup?',
+            `Replace current roster with ${parsed.students.length} students and ${parsed.events.length} events from this backup?`,
+            'Restore Data',
+            false
+          );
+          if (!confirmed) return;
+
+          await dbClear('students');
+          await dbClear('events');
+
+          for (const st of parsed.students) {
+            await dbPut('students', st);
+          }
+          for (const ev of parsed.events) {
+            await dbPut('events', ev);
+          }
+
+          appState.students = parsed.students;
+          appState.events = parsed.events.sort((a, b) => b.date.localeCompare(a.date));
+          appState.activeEventId = appState.events.length > 0 ? appState.events[0].id : null;
+          appState.dismissedFollowUps = parsed.dismissedFollowUps || {};
+          await dbPut('meta', { id: 'dismissedFollowUps', map: appState.dismissedFollowUps });
+
+          renderAllViews();
+          showToast('Backup restored successfully!', 'success');
+        } catch (err) {
+          console.error('Import backup error:', err);
+          showToast('Could not read backup JSON file.', 'error');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    async function updateLeaderSettings(e) {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      const name = document.getElementById('settings-leader-name').value.trim();
+      const ministry = document.getElementById('settings-ministry-name').value.trim();
+      const newPin = document.getElementById('settings-new-pin').value.trim();
+
+      if (!name || !ministry) {
+        showToast('Leader name and ministry name are required.', 'error');
+        return;
+      }
+
+      if (!leaderProfile) {
+        leaderProfile = { id: 'leader', name, ministry, pin: newPin || '1234', lastBackup: null };
+      } else {
+        leaderProfile.name = name;
+        leaderProfile.ministry = ministry;
+        if (newPin.length >= 4) {
+          leaderProfile.pin = newPin;
+        }
+      }
+
+      await dbPut('meta', leaderProfile);
+      document.getElementById('settings-new-pin').value = '';
+      document.getElementById('header-ministry-name').textContent = leaderProfile.ministry;
+      document.getElementById('header-leader-name').textContent = `Leader: ${leaderProfile.name}`;
+      showToast('Leader settings saved!', 'success');
+    }
+
+    async function loadSampleData(silent = false) {
+      const today = new Date();
+      const formatOffsetDate = (daysOffset) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() + daysOffset);
+        return d.toISOString().split('T')[0];
+      };
+      const formatBdayInDays = (daysAhead, ageTurning) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() + daysAhead);
+        const birthYear = d.getFullYear() - ageTurning;
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${birthYear}-${m}-${day}`;
+      };
+
+      const sampleStudents = [
+        {
+          id: 'st_sample_1',
+          name: 'Caleb Brooks',
+          gender: 'Male',
+          grade: '10th',
+          dob: formatBdayInDays(4, 16),
+          school: 'Northside High',
+          phone: '(555) 234-8891',
+          canText: true,
+          address: '412 Oak Ridge Dr',
+          photo: '',
+          parent1Name: 'David Brooks',
+          parent1Phone: '(555) 234-8890',
+          parent2Name: 'Sarah Brooks',
+          parent2Contact: '(555) 234-8892',
+          emergency: 'Uncle Mark - (555) 991-0022',
+          medical: 'None',
+          insurance: 'Aetna #884920',
+          permSigned: true,
+          photoRelease: true,
+          permissionPdf: null,
+          notes: 'Plays acoustic guitar on youth worship team.'
+        },
+        {
+          id: 'st_sample_2',
+          name: 'Maya Lin',
+          gender: 'Female',
+          grade: '8th',
+          dob: formatBdayInDays(10, 14),
+          school: 'Westview Middle',
+          phone: '(555) 391-4420',
+          canText: true,
+          address: '108 Maple Ave',
+          photo: '',
+          parent1Name: 'Grace Lin',
+          parent1Phone: '(555) 391-4421',
+          parent2Name: '',
+          parent2Contact: '',
+          emergency: 'Grandma Rose - (555) 391-9900',
+          medical: 'Mild seasonal asthma (inhaler in backpack)',
+          insurance: 'BlueCross #552109',
+          permSigned: true,
+          photoRelease: false,
+          permissionPdf: null,
+          notes: 'Do not post photos on Instagram/Facebook per parent request.'
+        },
+        {
+          id: 'st_sample_3',
+          name: 'Ethan Morales',
+          gender: 'Male',
+          grade: '11th',
+          dob: '2009-04-18',
+          school: 'Northside High',
+          phone: '(555) 602-7714',
+          canText: true,
+          address: '890 Pinecrest Ln',
+          photo: '',
+          parent1Name: 'Carlos Morales',
+          parent1Phone: '(555) 602-7710',
+          parent2Name: 'Elena Morales',
+          parent2Contact: '(555) 602-7711',
+          emergency: 'Carlos Morales - (555) 602-7710',
+          medical: 'Peanut allergy',
+          insurance: 'UnitedHealthcare #771234',
+          permSigned: true,
+          photoRelease: true,
+          permissionPdf: null,
+          notes: 'Varsity soccer practice on Wednesdays—check in on him!'
+        },
+        {
+          id: 'st_sample_4',
+          name: 'Chloe Bennett',
+          gender: 'Female',
+          grade: '7th',
+          dob: '2013-08-25',
+          school: 'Westview Middle',
+          phone: '',
+          canText: false,
+          address: '27 Birchwood Ct',
+          photo: '',
+          parent1Name: 'Amanda Bennett',
+          parent1Phone: '(555) 748-1129',
+          parent2Name: '',
+          parent2Contact: '',
+          emergency: 'Amanda Bennett - (555) 748-1129',
+          medical: 'None',
+          insurance: 'Cigna #331987',
+          permSigned: false,
+          photoRelease: true,
+          permissionPdf: null,
+          notes: 'Needs parent permission form signed before summer camp.'
+        }
+      ];
+
+      const sampleEvents = [
+        {
+          id: 'ev_sample_latest',
+          name: 'Wednesday Night Youth',
+          date: formatOffsetDate(-2),
+          type: 'Midweek Service',
+          attendees: ['st_sample_1', 'st_sample_2', 'st_sample_4']
+        },
+        {
+          id: 'ev_sample_prev',
+          name: 'Wednesday Night Youth',
+          date: formatOffsetDate(-9),
+          type: 'Midweek Service',
+          attendees: ['st_sample_1', 'st_sample_4']
+        }
+      ];
+
+      for (const st of sampleStudents) {
+        await dbPut('students', st);
+        if (!appState.students.some((existing) => existing.id === st.id)) {
+          appState.students.push(st);
+        }
+      }
+
+      for (const ev of sampleEvents) {
+        await dbPut('events', ev);
+        if (!appState.events.some((existing) => existing.id === ev.id)) {
